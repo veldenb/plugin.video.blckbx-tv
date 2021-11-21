@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="plugin.video.blckbx-tv" name="blckbx.tv" version="0.0.1" provider-name="veldenb">
+    <requires>
+        <import addon="xbmc.python" version="3.0.0"/>
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="addon.py">
+        <provides>video</provides>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <summary lang="nl_NL">Deze uitbreiding geeft de mogelijkheid om video's van blckbx.tv te bekijken.</summary>
+        <description lang="nl_NL">
+            Deze uitbreiding geeft de mogelijkheid om video's van blckbx.tv te bekijken.
+        </description>
+        <language>nl</language>
+        <platform>linux</platform>
+        <license>GPL-3.0-or-later</license>
+        <forum></forum>
+        <website>https://github.com/veldenb/plugin.video.blckbx-tv</website>
+        <email></email>
+        <source>https://github.com/veldenb/plugin.video.blckbx-tv</source>
+        <news></news>
+        <disclaimer lang="nl_NL">
+            In deze steeds meer polariserende wereld, waarin het wantrouwen in de overheid en de reguliere media lijkt
+            toe te nemen, wil blckbx een kaarslicht in de duisternis zijn.
+        </disclaimer>
+        <assets>
+            <icon>resources/icon.png</icon>
+            <fanart>resources/fanart.jpg</fanart>
+            <screenshot>resources/screenshot-01.jpg</screenshot>
+            <screenshot>resources/screenshot-02.jpg</screenshot>
+            <screenshot>resources/screenshot-03.jpg</screenshot>
+        </assets>
+    </extension>
+</addon>
