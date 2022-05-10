@@ -25,6 +25,9 @@ def show_gui(handle, url: str):
     video_page_urls = []
     page_has_content = True
 
+    # Do not keep session cache longer than one hour
+    clear_session_cache()
+
     while page_has_content:
         # Make sure it's initialised on empty
         page_has_content = False
@@ -163,6 +166,7 @@ def get_json_from_embed_url(url: str) -> dict:
     embed_json_string = re.search('{.*}', embed_part).group() \
         .replace(',loaded:a()', '') \
         .replace(',loaded:d()', '') \
+        .replace(',loaded:getTime()', '') \
         .replace('\\/', '/')
 
     # Parse json to dict
@@ -177,6 +181,7 @@ def add_list_item(handle, embed_dict: dict):
     width = embed_dict.get('w')
     height = embed_dict.get('h')
     subtitles = embed_dict.get('cc')
+    pub_date = embed_dict.get('pubDate')
 
     codec = 'mp4'
     streams = embed_dict.get('ua').get(codec)
@@ -197,7 +202,7 @@ def add_list_item(handle, embed_dict: dict):
     # Assign data to list-item
     li = xbmcgui.ListItem()
     li.setLabel(title)
-    li.setInfo('video', {'plot': title})
+    li.setInfo('video', {'plot': title, 'aired': pub_date})
     li.addStreamInfo('video', {'codec': codec, 'width': width, 'height': height})
     li.setSubtitles(subtitle_list)
     li.setArt({
@@ -276,9 +281,6 @@ args = urllib.parse.parse_qs(sys.argv[2][1:])
 addon = xbmcaddon.Addon()
 if addon_handle != -1:
     xbmcplugin.setContent(addon_handle, 'videos')
-
-# Do not keep session cache longer than one hour
-clear_session_cache()
 
 # Show GUI, plugin should work with any Rumble user
 show_gui(addon_handle, 'https://rumble.com/user/BLCKBX')
