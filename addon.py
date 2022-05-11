@@ -177,12 +177,13 @@ def add_list_item(handle, embed_dict: dict):
     # Get data from dict
     video_id = embed_dict.get('vid')
     title = html.unescape(embed_dict.get('title'))
+    author_name = html.unescape(embed_dict.get('author').get('name'))
+    duration = embed_dict.get('duration')
+    pub_date = embed_dict.get('pubDate')
     thumb_url = embed_dict.get('i')
     width = embed_dict.get('w')
     height = embed_dict.get('h')
     subtitles = embed_dict.get('cc')
-    pub_date = embed_dict.get('pubDate')
-
     codec = 'mp4'
     streams = embed_dict.get('ua').get(codec)
 
@@ -202,8 +203,24 @@ def add_list_item(handle, embed_dict: dict):
     # Assign data to list-item
     li = xbmcgui.ListItem()
     li.setLabel(title)
-    li.setInfo('video', {'plot': title, 'aired': pub_date})
-    li.addStreamInfo('video', {'codec': codec, 'width': width, 'height': height})
+    li.setInfo('video', {
+        'title': title,
+        'plot': title,
+        'plotoutline': title,
+        'duration': duration,
+        'aired': pub_date,
+        'studio': author_name,
+        'cast': [author_name]
+    })
+
+    # fixme: add all available streams
+    li.addStreamInfo('video', {
+        'codec': 'mpeg4',
+        'width': width,
+        'height': height,
+        'duration': duration
+    })
+
     li.setSubtitles(subtitle_list)
     li.setArt({
         'thumb': thumb_url,
