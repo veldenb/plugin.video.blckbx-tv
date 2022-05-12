@@ -8,7 +8,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-import requests
+from urllib.error import HTTPError
 import xbmc
 import xbmcaddon
 import xbmcgui
@@ -229,9 +229,16 @@ def add_list_item(handle, embed_dict: dict):
 
 def fetch_url(url: str) -> str:
     xbmc.log('Request url: ' + url, xbmc.LOGDEBUG)
+    body = ''
 
     # Get html
-    return request_session.get(url).text
+    try:
+        with urllib.request.urlopen(url) as response:
+            body = response.read().decode(response.headers.get_content_charset() or 'utf-8')
+    except HTTPError as e:
+        xbmc.log('Requesting url failed: {}'.format(url), xbmc.LOGDEBUG)
+
+    return body
 
 
 def is_file_older_than_hours(file, minutes) -> bool:
@@ -283,7 +290,6 @@ def clear_session_cache(force: bool = False):
 base_url = sys.argv[0]
 addon_handle = int(sys.argv[1])
 args = urllib.parse.parse_qs(sys.argv[2][1:])
-request_session = requests.Session()
 
 # Configure addon
 addon = xbmcaddon.Addon()
