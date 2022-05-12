@@ -181,21 +181,19 @@ def add_list_item(handle, embed_dict: dict):
     duration = embed_dict.get('duration')
     pub_date = embed_dict.get('pubDate')
     thumb_url = embed_dict.get('i')
-    width = embed_dict.get('w')
-    height = embed_dict.get('h')
     subtitles = embed_dict.get('cc')
     codec = 'mp4'
     streams = embed_dict.get('ua').get(codec)
 
     # Search for best quality
-    if str(height) in streams:
-        stream_url = streams.get(str(height)).get('url')
-    elif '1080' in streams:
-        stream_url = streams.get('1080').get('url')
-    elif '720' in streams:
-        stream_url = streams.get('720').get('url')
-    else:
-        stream_url = embed_dict.get('u').get('mp4').get('url')
+    stream_max_height = 0
+    stream_max_width = 0
+    stream_url = ''
+    for stream_height, stream in streams.items():
+        if stream_max_height < int(stream_height):
+            stream_url = stream.get('url')
+            stream_max_height = int(stream_height)
+            stream_max_width = stream.get('meta').get('w')
 
     # Find subtitles
     subtitle_list = fetch_subtitles(subtitles, str(video_id))
@@ -213,11 +211,10 @@ def add_list_item(handle, embed_dict: dict):
         'cast': [author_name]
     })
 
-    # fixme: add all available streams
     li.addStreamInfo('video', {
         'codec': 'mpeg4',
-        'width': width,
-        'height': height,
+        'width': stream_max_width,
+        'height': stream_max_height,
         'duration': duration
     })
 
