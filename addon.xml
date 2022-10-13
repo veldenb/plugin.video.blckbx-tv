@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="plugin.video.blckbx-tv" name="blckbx.tv" version="0.0.3" provider-name="veldenb">
+<addon id="plugin.video.blckbx-tv" name="blckbx.tv" version="0.0.4" provider-name="veldenb">
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
     </requires>
@@ -12,7 +12,7 @@
             Deze uitbreiding geeft de mogelijkheid om video's van blckbx.tv te bekijken.
         </description>
         <language>nl</language>
-        <platform>linux</platform>
+        <platform>all</platform>
         <license>GPL-3.0-or-later</license>
         <forum></forum>
         <website>https://github.com/veldenb/plugin.video.blckbx-tv</website>
