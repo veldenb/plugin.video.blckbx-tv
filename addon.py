@@ -1,4 +1,3 @@
-import gzip
 import html
 import json
 import os
@@ -11,11 +10,20 @@ import urllib.request
 from threading import Thread
 from urllib.error import HTTPError
 
+import dateutil.parser
 import xbmc
 import xbmcaddon
 import xbmcgui
 import xbmcplugin
 from xbmcvfs import translatePath
+
+import cache
+
+# Constants
+CACHE_FILE_NAME = 'cache.json.gz'
+CACHE_KEY_USER_PAGE = 'user_page'
+CACHE_KEY_VIDEO_PAGE = 'video_page'
+CACHE_KEY_EMBED_JSON = 'embed_json'
 
 
 def show_gui(handle, url: str):
@@ -26,9 +34,9 @@ def show_gui(handle, url: str):
     # Need to get an un-cached version
     for video_page_url in get_video_pages_from_user_urls(url + '?page={}'.format(1)):
         if video_page_url:
-            if not video_page_in_cache(video_page_url):
-                # If a page is not in cache assume cache is old and rebuild te list
-                clear_session_cache()
+            if not cache.exists(CACHE_KEY_VIDEO_PAGE, video_page_url):
+                # If a page is not in cache assume cache is old and rebuild the cache
+                cache.clear(CACHE_KEY_USER_PAGE)
                 break
 
     while fetch_next_user_page:
@@ -69,38 +77,7 @@ def request_url(url: str) -> str:
     return fetch_url(url)
 
 
-def persist_to_file(file_name) -> any:
-    addon_data_file_name = get_addon_data_path('/' + file_name)
-
-    def decorator(original_func) -> any:
-        try:
-            # Decode gzip and load json
-            gzip_file_readonly = gzip.open(addon_data_file_name)
-            cache = json.loads(gzip_file_readonly.read())
-            gzip_file_readonly.close()
-
-        except (IOError, ValueError):
-            cache = {}
-
-        def new_func(param) -> str:
-
-            if param in cache:
-                xbmc.log('Cache hit {}: {}'.format(file_name, param), xbmc.LOGDEBUG)
-            else:
-                cache[param] = original_func(param)
-
-                # Dump json to gzip
-                gzip_file_write = gzip.open(addon_data_file_name, 'wb')
-                gzip_file_write.write(json.dumps(cache).encode('utf-8'))
-                gzip_file_write.close()
-            return cache[param]
-
-        return new_func
-
-    return decorator
-
-
-@persist_to_file('session.dat.gz')
+@cache.persist(CACHE_KEY_USER_PAGE)
 def get_video_pages_from_user_urls_cached(url: str) -> list:
     return get_video_pages_from_user_urls(url)
 
@@ -126,26 +103,7 @@ def get_video_pages_from_user_urls(url: str) -> list:
     return video_page_urls
 
 
-def video_page_in_cache(url: str) -> bool:
-    in_cache = False
-    cache_file = get_addon_data_path('/video_page_to_embed_url_mapping_cache.dat.gz')
-
-    try:
-        # Decode gzip and load json
-        gzip_file_readonly = gzip.open(cache_file)
-        cache = json.loads(gzip_file_readonly.read())
-        gzip_file_readonly.close()
-
-        if url in cache:
-            in_cache = True
-
-    except (IOError, ValueError):
-        in_cache = False
-
-    return in_cache
-
-
-@persist_to_file('video_page_to_embed_url_mapping_cache.dat.gz')
+@cache.persist(CACHE_KEY_VIDEO_PAGE)
 def get_embed_url_from_video_page(url: str) -> str:
     # Download video page html
     video_html = request_url(url)
@@ -159,7 +117,7 @@ def get_embed_url_from_video_page(url: str) -> str:
     return embed_url
 
 
-@persist_to_file('embed_json_cache.dat.gz')
+@cache.persist(CACHE_KEY_EMBED_JSON)
 def get_json_from_embed_url(url: str) -> dict:
     # Download embed html
     embed_html = request_url(url)
@@ -170,7 +128,7 @@ def get_json_from_embed_url(url: str) -> dict:
     # Find part in the html where the json is assigned
     embed_part = re.search('\["' + video_id + '"\]={.+?(?!;)};', embed_html).group()
 
-    # Strip off all non-json stuff, remove escape-slashes and a non standard function in the json
+    # Strip off all non-json stuff, remove escape-slashes and a non-standard function in the json
     embed_json_string = re.search('{.*}', embed_part).group() \
         .replace(',loaded:a()', '') \
         .replace(',loaded:d()', '') \
@@ -357,14 +315,6 @@ def scrape_threaded(title, addresses, no_workers):
     return r
 
 
-def clear_session_cache():
-    xbmc.log('Clearing session cache', xbmc.LOGDEBUG)
-    session_cache_path = get_addon_data_path('/session.dat.gz')
-
-    if path.isfile(session_cache_path):
-        os.unlink(session_cache_path)
-
-
 # Parse arguments
 base_url = sys.argv[0]
 addon_handle = int(sys.argv[1])
@@ -375,5 +325,12 @@ addon = xbmcaddon.Addon()
 if addon_handle != -1:
     xbmcplugin.setContent(addon_handle, 'videos')
 
+# Read cache
+cache_file_path = get_addon_data_path('/' + CACHE_FILE_NAME)
+cache.read(cache_file_path)
+
 # Show GUI, plugin should work with any Rumble user
 show_gui(addon_handle, 'https://rumble.com/user/BLCKBX')
+
+# Write cache
+cache.write(cache_file_path)
