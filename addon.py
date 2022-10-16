@@ -3,12 +3,14 @@ import html
 import json
 import os
 import os.path as path
+import queue
 import re
 import sys
-import time
 import urllib.parse
 import urllib.request
+from threading import Thread
 from urllib.error import HTTPError
+
 import xbmc
 import xbmcaddon
 import xbmcgui
@@ -16,56 +18,39 @@ import xbmcplugin
 from xbmcvfs import translatePath
 
 
-# TODO: refactor plugin to concurrent connections:
-#  https://towardsdatascience.com/parallel-web-requests-in-python-4d30cc7b8989
-
-
 def show_gui(handle, url: str):
     page_number = 0
     video_page_urls = []
-    page_has_content = True
+    fetch_next_user_page = True
 
-    # Do not keep session cache longer than one hour
-    clear_session_cache()
+    # Need to get an un-cached version
+    for video_page_url in get_video_pages_from_user_urls(url + '?page={}'.format(1)):
+        if video_page_url:
+            if not video_page_in_cache(video_page_url):
+                # If a page is not in cache assume cache is old and rebuild te list
+                clear_session_cache()
+                break
 
-    while page_has_content:
+    while fetch_next_user_page:
         # Make sure it's initialised on empty
-        page_has_content = False
+        fetch_next_user_page = False
         page_number += 1
 
         # Request video page urls from user url
-        for video_page_url_page in get_video_pages_from_user_url(url + '?page={}'.format(page_number)):
-            if video_page_url_page:
-                video_page_urls.append(video_page_url_page)
-                page_has_content = True
+        for video_page_url in get_video_pages_from_user_urls_cached(url + '?page={}'.format(page_number)):
+            if video_page_url:
+                video_page_urls.append(video_page_url)
+                fetch_next_user_page = True
 
     # Create progress bar
     rumble_user = url.split('/').pop()
-    p_dialog = xbmcgui.DialogProgress()
-    p_dialog.create(rumble_user)
-    url_number = 0
 
-    for video_page_url in video_page_urls:
-        # Get embed-url from page-url
-        embed_url = get_embed_url_from_video_page(video_page_url)
+    # Concurrency limit seems to be 99 concurrent connections on Rumble, better stay on a lower safe number (like 20)
+    embed_dicts = scrape_threaded(rumble_user, video_page_urls, 20)
 
-        # Create list-item from embed-url
-        embed_dict = get_json_from_embed_url(embed_url)
-
-        url_number += 1
-        percent = int(round(url_number / len(video_page_urls) * 100))
-        p_dialog.update(percent, html.unescape(embed_dict.get('title')))
-
+    for embed_dict in embed_dicts:
         # Create list-item from embed-json
         add_list_item(handle, embed_dict)
-
-        # If dialog is canceled do not keep session cache
-        if p_dialog.iscanceled():
-            clear_session_cache(True)
-            break
-
-    # Close progress bar
-    p_dialog.close()
 
     # Finish list
     xbmcplugin.endOfDirectory(handle)
@@ -116,7 +101,11 @@ def persist_to_file(file_name) -> any:
 
 
 @persist_to_file('session.dat.gz')
-def get_video_pages_from_user_url(url: str) -> list:
+def get_video_pages_from_user_urls_cached(url: str) -> list:
+    return get_video_pages_from_user_urls(url)
+
+
+def get_video_pages_from_user_urls(url: str) -> list:
     user_html = fetch_url(url)
 
     # Construct the base url (url's in the html are relative)
@@ -135,6 +124,25 @@ def get_video_pages_from_user_url(url: str) -> list:
         xbmc.log('Found videopart: ' + prefix + video_page_url[:-1], xbmc.LOGDEBUG)
 
     return video_page_urls
+
+
+def video_page_in_cache(url: str) -> bool:
+    in_cache = False
+    cache_file = get_addon_data_path('/video_page_to_embed_url_mapping_cache.dat.gz')
+
+    try:
+        # Decode gzip and load json
+        gzip_file_readonly = gzip.open(cache_file)
+        cache = json.loads(gzip_file_readonly.read())
+        gzip_file_readonly.close()
+
+        if url in cache:
+            in_cache = True
+
+    except (IOError, ValueError):
+        in_cache = False
+
+    return in_cache
 
 
 @persist_to_file('video_page_to_embed_url_mapping_cache.dat.gz')
@@ -241,16 +249,6 @@ def fetch_url(url: str) -> str:
     return body
 
 
-def is_file_older_than_hours(file, minutes) -> bool:
-    xbmc.log('Checking cache file: {}'.format(file), xbmc.LOGDEBUG)
-    if not path.exists(file):
-        return False
-
-    file_time = path.getmtime(file)
-
-    return (time.time() - file_time) / 60 > minutes
-
-
 def fetch_subtitles(cc: dict, video_id: str) -> list:
     # Find subtitles
     subtitle_list = []
@@ -278,12 +276,93 @@ def fetch_subtitles(cc: dict, video_id: str) -> list:
     return subtitle_list
 
 
-def clear_session_cache(force: bool = False):
+def scrape_threaded(title, addresses, no_workers):
+    class Worker(Thread):
+        def __init__(self, request_queue):
+            Thread.__init__(self)
+            self.queue = request_queue
+            self.results = []
+
+        def run(self):
+            while True:
+                video_page_url = self.queue.get()
+                if video_page_url == "":
+                    break
+
+                # Get embed-url from page-url
+                embed_url = get_embed_url_from_video_page(video_page_url)
+
+                # Create list-item from embed-url
+                embed_dict = get_json_from_embed_url(embed_url)
+
+                # Pre-load subtitles if available
+                video_id = embed_dict.get('vid', '')
+                subtitles = embed_dict.get('cc', '')
+                if video_id and subtitles:
+                    fetch_subtitles(subtitles, str(video_id))
+
+                self.results.append(embed_dict)
+                self.queue.task_done()
+
+    # Create queue and add addresses
+    q = queue.Queue()
+    for url in addresses:
+        q.put(url)
+
+    # Get queue size
+    queue_size = q.qsize()
+
+    # Workers keep working till they receive an empty string
+    for _ in range(no_workers):
+        q.put("")
+
+    # Create workers and add tot the queue
+    workers = []
+    for _ in range(no_workers):
+        worker = Worker(q)
+        worker.start()
+        workers.append(worker)
+
+    p_dialog = None
+
+    # Join workers to wait till they finished
+    for worker in workers:
+        # While works al active update the progress bar
+        while worker.is_alive():
+            xbmc.sleep(1000)
+
+            # If there is still work after a second show the progress bar
+            if q.qsize() > 0:
+                if not p_dialog:
+                    p_dialog = xbmcgui.DialogProgress()
+                    p_dialog.create(title)
+
+                queue_progress = (queue_size - q.qsize())
+                percent = int(round(queue_progress / queue_size * 100))
+                p_dialog.update(percent, "Bezig met laden van video's...")
+
+                # If dialog is canceled do not keep session cache
+                if p_dialog.iscanceled():
+                    break
+
+    # Combine results from all workers
+    r = []
+    for worker in workers:
+        r.extend(worker.results)
+
+    # Close progress bar
+    if p_dialog:
+        p_dialog.close()
+
+    return r
+
+
+def clear_session_cache():
+    xbmc.log('Clearing session cache', xbmc.LOGDEBUG)
     session_cache_path = get_addon_data_path('/session.dat.gz')
 
     if path.isfile(session_cache_path):
-        if force or is_file_older_than_hours(session_cache_path, 60):
-            os.unlink(session_cache_path)
+        os.unlink(session_cache_path)
 
 
 # Parse arguments
