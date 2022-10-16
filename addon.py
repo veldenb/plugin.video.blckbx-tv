@@ -61,6 +61,7 @@ def show_gui(handle, url: str):
         add_list_item(handle, embed_dict)
 
     # Finish list
+    xbmcplugin.addSortMethod(handle, xbmcplugin.SORT_METHOD_DATEADDED)
     xbmcplugin.endOfDirectory(handle)
 
 
@@ -154,27 +155,38 @@ def add_list_item(handle, embed_dict: dict):
     # Search for best quality
     stream_max_height = 0
     stream_max_width = 0
+    stream_size = 0
     stream_url = ''
     for stream_height, stream in streams.items():
         if stream_max_height < int(stream_height):
             stream_url = stream.get('url')
             stream_max_height = int(stream_height)
             stream_max_width = stream.get('meta').get('w')
+            stream_size = stream.get('meta').get('size')
 
     # Find subtitles
     subtitle_list = fetch_subtitles(subtitles, str(video_id))
+
+    # Parse date
+    datetime = dateutil.parser.parse(str(pub_date))
+    date = datetime.strftime('%d.%m.%Y')
+    aired = datetime.strftime('%Y-%m-%d')
+    date_added = datetime.strftime('%Y-%m-%d %H:%M:%S')
 
     # Assign data to list-item
     li = xbmcgui.ListItem()
     li.setLabel(title)
     li.setInfo('video', {
+        'size': stream_size,
+        'date': date,
         'title': title,
         'plot': title,
         'plotoutline': title,
         'duration': duration,
-        'aired': pub_date,
+        'aired': aired,
         'studio': author_name,
-        'cast': [author_name]
+        'cast': [author_name],
+        'dateadded': date_added,
     })
 
     li.addStreamInfo('video', {
