@@ -54,11 +54,11 @@ def show_gui(handle, url: str):
     rumble_user = url.split('/').pop()
 
     # Concurrency limit seems to be 99 concurrent connections on Rumble, better stay on a lower safe number (like 20)
-    embed_dicts = scrape_threaded(rumble_user, video_page_urls, 20)
+    video_details = scrape_threaded(rumble_user, video_page_urls, 20)
 
-    for embed_dict in embed_dicts:
+    for video_detail in video_details:
         # Create list-item from embed-json
-        add_list_item(handle, embed_dict)
+        add_list_item(handle, video_detail['embed'], video_detail['description'])
 
     # Finish list
     xbmcplugin.addSortMethod(handle, xbmcplugin.SORT_METHOD_DATEADDED)
@@ -105,17 +105,33 @@ def get_video_pages_from_user_urls(url: str) -> list:
 
 
 @cache.persist(CACHE_KEY_VIDEO_PAGE)
-def get_embed_url_from_video_page(url: str) -> str:
+def get_video_page(url: str) -> dict:
     # Download video page html
     video_html = request_url(url)
 
     # Find the part in the page with the embed-json
-    video_embed_part = re.search('"embedUrl":"https?://.+/embed/.+?"', video_html).group()
+    video_embed_part = ''
+    video_embed_part_match = re.search('"embedUrl":"https?://.+/embed/.+?"', video_html)
+    if video_embed_part_match:
+        video_embed_part = video_embed_part_match.group()
+
+    # Try to parse the description
+    description = ''
+    description_list = re.findall('<p class="media-description">.+</p>', video_html)
+    if description_list:
+        # strip tags
+        description = "\n\n".join(description_list) \
+            .replace('<br>', "\n") \
+            .replace('<p>', "\n\n")
+        description = re.sub('<[^<]+?>', '', description)
+
+        # replace html escaped characters with normal text
+        description = html.unescape(description)
 
     # Extract url from part
     embed_url = video_embed_part.rsplit('"', 2)[-2]
 
-    return embed_url
+    return {'description': description, 'embed_url': embed_url}
 
 
 @cache.persist(CACHE_KEY_EMBED_JSON)
@@ -140,17 +156,17 @@ def get_json_from_embed_url(url: str) -> dict:
     return json.loads(embed_json_string)
 
 
-def add_list_item(handle, embed_dict: dict):
+def add_list_item(handle, embed: dict, description: str):
     # Get data from dict
-    video_id = embed_dict.get('vid')
-    title = html.unescape(embed_dict.get('title'))
-    author_name = html.unescape(embed_dict.get('author').get('name'))
-    duration = embed_dict.get('duration')
-    pub_date = embed_dict.get('pubDate')
-    thumb_url = embed_dict.get('i')
-    subtitles = embed_dict.get('cc')
+    video_id = embed.get('vid')
+    title = html.unescape(embed.get('title'))
+    author_name = html.unescape(embed.get('author').get('name'))
+    duration = embed.get('duration')
+    pub_date = embed.get('pubDate')
+    thumb_url = embed.get('i')
+    subtitles = embed.get('cc')
     codec = 'mp4'
-    streams = embed_dict.get('ua').get(codec)
+    streams = embed.get('ua').get(codec)
 
     # Search for best quality
     stream_max_height = 0
@@ -180,8 +196,7 @@ def add_list_item(handle, embed_dict: dict):
         'size': stream_size,
         'date': date,
         'title': title,
-        'plot': title,
-        'plotoutline': title,
+        'plot': title + "\n\n" + description,
         'duration': duration,
         'aired': aired,
         'studio': author_name,
@@ -259,11 +274,11 @@ def scrape_threaded(title, addresses, no_workers):
                 if video_page_url == "":
                     break
 
-                # Get embed-url from page-url
-                embed_url = get_embed_url_from_video_page(video_page_url)
+                # Get video-page data
+                video_page = get_video_page(video_page_url)
 
                 # Create list-item from embed-url
-                embed_dict = get_json_from_embed_url(embed_url)
+                embed_dict = get_json_from_embed_url(video_page['embed_url'])
 
                 # Pre-load subtitles if available
                 video_id = embed_dict.get('vid', '')
@@ -271,7 +286,7 @@ def scrape_threaded(title, addresses, no_workers):
                 if video_id and subtitles:
                     fetch_subtitles(subtitles, str(video_id))
 
-                self.results.append(embed_dict)
+                self.results.append({'description': video_page['description'], 'embed': embed_dict})
                 self.queue.task_done()
 
     # Create queue and add addresses
