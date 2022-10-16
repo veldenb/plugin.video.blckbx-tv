@@ -2,7 +2,7 @@
 Plugin om blckbx.tv te kijken met je Kodi media center.
 Met deze plugin kun je de video's van het BLCKBX Rumble kanaal bekijken inclusief ondersteuning voor ondertiteling.
 
-De plugin is hier te downloaden: [plugin.video.blckbx-tv.zip](https://github.com/veldenb/plugin.video.blckbx-tv/releases/latest/download/plugin.video.blckbx-tv.zip)
+De plugin is hier te downloaden: [laatste versie](https://github.com/veldenb/plugin.video.blckbx-tv/releases/latest/)
 
 Informatie over Kodi: [Kodi website](https://kodi.tv)
 
