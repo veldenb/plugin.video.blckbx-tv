@@ -10,7 +10,6 @@ import urllib.request
 from threading import Thread
 from urllib.error import HTTPError
 
-import dateutil.parser
 import xbmc
 import xbmcaddon
 import xbmcgui
@@ -183,11 +182,15 @@ def add_list_item(handle, embed: dict, description: str):
     # Find subtitles
     subtitle_list = fetch_subtitles(subtitles, str(video_id))
 
-    # Parse date
-    datetime = dateutil.parser.parse(str(pub_date))
-    date = datetime.strftime('%d.%m.%Y')
-    aired = datetime.strftime('%Y-%m-%d')
-    date_added = datetime.strftime('%Y-%m-%d %H:%M:%S')
+    # Parse date "pubDate": "2022-09-25T17:39:36+00:00",
+    date, time_with_zone = str(pub_date).split('T', 1)
+    year, month, day = date.split('-', 2)
+    time = time_with_zone.split('+', 1)[0]
+
+    # Format dates
+    date = '{}.{}.{}'.format(day, month, year)
+    aired = '{}-{}-{}'.format(year, month, day)
+    date_added = '{}-{}-{} {}'.format(year, month, day, time)
 
     # Assign data to list-item
     li = xbmcgui.ListItem()
