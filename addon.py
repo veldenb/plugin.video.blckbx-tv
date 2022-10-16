@@ -19,45 +19,59 @@ from xbmcvfs import translatePath
 import cache
 
 # Constants
+RUMBLE_URLS = [
+    'https://rumble.com/user/BLCKBX'
+]
+CONCURRENT_CONNECTIONS = 20
 CACHE_FILE_NAME = 'cache.json.gz'
 CACHE_KEY_USER_PAGE = 'user_page'
 CACHE_KEY_VIDEO_PAGE = 'video_page'
 CACHE_KEY_EMBED_JSON = 'embed_json'
 
 
-def show_gui(handle, url: str):
-    page_number = 0
-    video_page_urls = []
-    fetch_next_user_page = True
+def show_gui(handle, url_list: list):
+    for url in url_list:
+        page_number = 0
+        max_videos = addon.getSettingInt('video_view_max')
+        # Rumble display 18 video's per page
+        max_pages = (max_videos / 18)
+        video_page_urls = []
+        fetch_next_user_page = True
 
-    # Need to get an un-cached version
-    for video_page_url in get_video_pages_from_user_urls(url + '?page={}'.format(1)):
-        if video_page_url:
-            if not cache.exists(CACHE_KEY_VIDEO_PAGE, video_page_url):
-                # If a page is not in cache assume cache is old and rebuild the cache
-                cache.clear(CACHE_KEY_USER_PAGE)
-                break
-
-    while fetch_next_user_page:
-        # Make sure it's initialised on empty
-        fetch_next_user_page = False
-        page_number += 1
-
-        # Request video page urls from user url
-        for video_page_url in get_video_pages_from_user_urls_cached(url + '?page={}'.format(page_number)):
+        # Need to get an un-cached version
+        for video_page_url in get_video_pages_from_user_urls(url + '?page={}'.format(1)):
             if video_page_url:
-                video_page_urls.append(video_page_url)
-                fetch_next_user_page = True
+                if not cache.exists(CACHE_KEY_VIDEO_PAGE, video_page_url):
+                    # If a page is not in cache assume cache is old and rebuild the cache
+                    cache.clear(CACHE_KEY_USER_PAGE)
+                    break
 
-    # Create progress bar
-    rumble_user = url.split('/').pop()
+        while fetch_next_user_page and page_number <= max_pages:
+            # Make sure it's initialised on empty
+            fetch_next_user_page = False
+            page_number += 1
 
-    # Concurrency limit seems to be 99 concurrent connections on Rumble, better stay on a lower safe number (like 20)
-    video_details = scrape_threaded(rumble_user, video_page_urls, 20)
+            # Request video page urls from user url
+            for video_page_url in get_video_pages_from_user_urls_cached(url + '?page={}'.format(page_number)):
+                if video_page_url:
+                    video_page_urls.append(video_page_url)
+                    fetch_next_user_page = True
 
-    for video_detail in video_details:
-        # Create list-item from embed-json
-        add_list_item(handle, video_detail['embed'], video_detail['description'])
+        # Create progress bar
+        rumble_user = url.split('/').pop()
+
+        # Concurrency limit seems to be 99 concurrent connections on Rumble, better stay on a lower safe number (like 20)
+        video_details = scrape_threaded(rumble_user, video_page_urls, CONCURRENT_CONNECTIONS)
+
+        video_nr = 0
+        for video_detail in video_details:
+            video_nr += 1
+
+            # Create list-item from embed-json
+            add_list_item(handle, video_detail['embed'], video_detail['description'])
+
+            if video_nr >= max_videos:
+                break
 
     # Finish list
     xbmcplugin.addSortMethod(handle, xbmcplugin.SORT_METHOD_DATEADDED)
@@ -360,7 +374,7 @@ cache_file_path = get_addon_data_path('/' + CACHE_FILE_NAME)
 cache.read(cache_file_path)
 
 # Show GUI, plugin should work with any Rumble user
-show_gui(addon_handle, 'https://rumble.com/user/BLCKBX')
+show_gui(addon_handle, RUMBLE_URLS)
 
 # Write cache
 cache.write(cache_file_path)
