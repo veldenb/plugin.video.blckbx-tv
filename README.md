@@ -1,6 +1,6 @@
-# Kodi 19 video plugin voor blckbx.tv 
+# Kodi 19 video plugin voor [blckbx.tv](https://www.blckbx.tv/) 
 Plugin om blckbx.tv te kijken met je Kodi media center.
-Met deze plugin kun je de video's van het BLCKBX Rumble kanaal bekijken inclusief ondersteuning voor ondertiteling.
+Met deze plugin kun je de video's van het [BLCKBX Rumble kanaal](https://rumble.com/user/BLCKBX) bekijken inclusief ondersteuning voor ondertiteling.
 
 De plugin is hier te downloaden: [laatste versie](https://github.com/veldenb/plugin.video.blckbx-tv/releases/latest/)
 
