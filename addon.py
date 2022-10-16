@@ -32,9 +32,9 @@ CACHE_KEY_EMBED_JSON = 'embed_json'
 def show_gui(handle, url_list: list):
     for url in url_list:
         page_number = 0
-        max_videos = addon.getSettingInt('video_view_max')
+        max_videos_per_url = addon.getSettingInt('video_view_max') / len(url_list)
         # Rumble display 18 video's per page
-        max_pages = (max_videos / 18)
+        max_pages = max_videos_per_url / 18
         video_page_urls = []
         fetch_next_user_page = True
 
@@ -70,7 +70,7 @@ def show_gui(handle, url_list: list):
             # Create list-item from embed-json
             add_list_item(handle, video_detail['embed'], video_detail['description'])
 
-            if video_nr >= max_videos:
+            if video_nr >= max_videos_per_url:
                 break
 
     # Finish list
