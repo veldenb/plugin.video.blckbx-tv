@@ -186,6 +186,10 @@ def add_list_item(handle, embed: dict, description: str):
     stream_max_width = 0
     stream_size = 0
     stream_url = ''
+    if len(streams) == 0:
+        xbmc.log('No streams for "{}", live broadcast currently not supported.'.format(title), xbmc.LOGWARNING)
+        return
+
     for stream_height, stream in streams.items():
         if stream_max_height < int(stream_height):
             stream_url = stream.get('url')
