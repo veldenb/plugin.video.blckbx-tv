@@ -226,7 +226,7 @@ def add_list_item(handle, embed: dict, description: str):
     })
 
     li.addStreamInfo('video', {
-        'codec': 'mpeg4',
+        'codec': 'h264',
         'width': stream_max_width,
         'height': stream_max_height,
         'duration': duration
