@@ -178,24 +178,33 @@ def add_list_item(handle, embed: dict, description: str):
     pub_date = embed.get('pubDate')
     thumb_url = embed.get('i')
     subtitles = embed.get('cc')
-    codec = 'mp4'
-    streams = embed.get('ua').get(codec)
+
+    # Regular streams
+    streams_mp4 = embed.get('ua').get('mp4')
+
+    # Live streams
+    streams_hls = embed.get('u').get('hls')
 
     # Search for best quality
     stream_max_height = 0
     stream_max_width = 0
     stream_size = 0
     stream_url = ''
-    if len(streams) == 0:
-        xbmc.log('No streams for "{}", live broadcast currently not supported.'.format(title), xbmc.LOGWARNING)
-        return
 
-    for stream_height, stream in streams.items():
-        if stream_max_height < int(stream_height):
-            stream_url = stream.get('url')
-            stream_max_height = int(stream_height)
-            stream_max_width = stream.get('meta').get('w')
-            stream_size = stream.get('meta').get('size')
+    if streams_mp4:
+        for stream_height, stream in streams_mp4.items():
+            if stream_max_height < int(stream_height):
+                stream_url = stream.get('url')
+                stream_max_height = int(stream_height)
+                stream_max_width = stream.get('meta').get('w')
+                stream_size = stream.get('meta').get('size')
+    elif streams_hls:
+        stream_url = streams_hls.get('url')
+        stream_max_height = embed.get('h')
+        stream_max_width = embed.get('w')
+    else:
+        xbmc.log('No streams found for "{}"'.format(title), xbmc.LOGWARNING)
+        return
 
     # Find subtitles
     subtitle_list = fetch_subtitles(subtitles, str(video_id))
