@@ -3,7 +3,7 @@ import json
 
 import xbmc
 
-# Global vars
+# Global vars - pool has format cache_pool[cache_key][cache_item] = data
 cache_pool = {}
 cache_pool_updated = False
 
@@ -22,7 +22,7 @@ def read(filename):
         cache_pool = {}
 
 
-def persist(cache_key) -> any:
+def item_persist(cache_key) -> any:
     def decorator(original_func) -> any:
 
         def new_func(param) -> str:
@@ -45,7 +45,7 @@ def persist(cache_key) -> any:
     return decorator
 
 
-def exists(cache_key: str, item: str) -> bool:
+def item_exists(cache_key: str, item: str) -> bool:
     in_cache = False
 
     if cache_key not in cache_pool:
@@ -55,6 +55,15 @@ def exists(cache_key: str, item: str) -> bool:
         in_cache = True
 
     return in_cache
+
+def item_delete(cache_key: str, item: str) -> bool:
+    deleted = False
+
+    if item_exists(cache_key, item):
+        cache_pool[cache_key].pop(item)
+        deleted = True
+
+    return deleted
 
 
 def write(filename):

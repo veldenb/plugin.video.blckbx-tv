@@ -41,7 +41,7 @@ def show_gui(handle, url_list: list):
         # Need to get an un-cached version
         for video_page_url in get_video_pages_from_user_urls(url + '?page={}'.format(1)):
             if video_page_url:
-                if not cache.exists(CACHE_KEY_VIDEO_PAGE, video_page_url):
+                if not cache.item_exists(CACHE_KEY_VIDEO_PAGE, video_page_url):
                     # If a page is not in cache assume cache is old and rebuild the cache
                     cache.clear(CACHE_KEY_USER_PAGE)
                     break
@@ -91,7 +91,7 @@ def request_url(url: str) -> str:
     return fetch_url(url)
 
 
-@cache.persist(CACHE_KEY_USER_PAGE)
+@cache.item_persist(CACHE_KEY_USER_PAGE)
 def get_video_pages_from_user_urls_cached(url: str) -> list:
     return get_video_pages_from_user_urls(url)
 
@@ -117,7 +117,7 @@ def get_video_pages_from_user_urls(url: str) -> list:
     return video_page_urls
 
 
-@cache.persist(CACHE_KEY_VIDEO_PAGE)
+@cache.item_persist(CACHE_KEY_VIDEO_PAGE)
 def get_video_page(url: str) -> dict:
     # Download video page html
     video_html = request_url(url)
@@ -147,7 +147,7 @@ def get_video_page(url: str) -> dict:
     return {'description': description, 'embed_url': embed_url}
 
 
-@cache.persist(CACHE_KEY_EMBED_JSON)
+@cache.item_persist(CACHE_KEY_EMBED_JSON)
 def get_json_from_embed_url(url: str) -> dict:
     # Download embed html
     embed_html = request_url(url)
@@ -309,6 +309,10 @@ def scrape_threaded(title, addresses, no_workers):
 
                 # Create list-item from embed-url
                 embed_dict = get_json_from_embed_url(video_page['embed_url'])
+
+                # Do not cache live streams
+                if embed_dict.get('livestream_has_dvr') is True:
+                    cache.item_delete(CACHE_KEY_EMBED_JSON, video_page['embed_url'])
 
                 # Pre-load subtitles if available
                 video_id = embed_dict.get('vid', '')
