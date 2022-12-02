@@ -35,27 +35,30 @@ def show_gui(handle, url_list: list):
         max_videos_per_url = addon.getSettingInt('video_view_max') / len(url_list)
         # Rumble display 18 video's per page
         max_pages = max_videos_per_url / 18
-        video_page_urls = []
         fetch_next_user_page = True
 
-        # Need to get an un-cached version
-        for video_page_url in get_video_pages_from_user_urls(url + '?page={}'.format(1)):
-            if video_page_url:
-                if not cache.item_exists(CACHE_KEY_VIDEO_PAGE, video_page_url):
-                    # If a page is not in cache assume cache is old and rebuild the cache
-                    cache.clear(CACHE_KEY_USER_PAGE)
-                    break
+        # Get pages from cache
+        video_page_urls = cache.item_get(CACHE_KEY_USER_PAGE, 'video_page_urls')
+        if not video_page_urls:
+            video_page_urls = []
 
         while fetch_next_user_page and page_number <= max_pages:
-            # Make sure it's initialised on empty
+            all_items_on_page_in_cache = True
             fetch_next_user_page = False
             page_number += 1
 
             # Request video page urls from user url
-            for video_page_url in get_video_pages_from_user_urls_cached(url + '?page={}'.format(page_number)):
+            for video_page_url in get_video_pages_from_user_urls(url + '?page={}'.format(page_number)):
                 if video_page_url:
-                    video_page_urls.append(video_page_url)
                     fetch_next_user_page = True
+                    if not video_page_url in video_page_urls:
+                        video_page_urls.append(video_page_url)
+                        all_items_on_page_in_cache = False
+
+            if all_items_on_page_in_cache:
+                break
+
+        cache.item_persist(CACHE_KEY_USER_PAGE, 'video_page_urls', video_page_urls)
 
         # Create progress bar
         rumble_user = url.split('/').pop()
@@ -91,11 +94,6 @@ def request_url(url: str) -> str:
     return fetch_url(url)
 
 
-@cache.item_persist(CACHE_KEY_USER_PAGE)
-def get_video_pages_from_user_urls_cached(url: str) -> list:
-    return get_video_pages_from_user_urls(url)
-
-
 def get_video_pages_from_user_urls(url: str) -> list:
     user_html = fetch_url(url)
 
@@ -117,7 +115,7 @@ def get_video_pages_from_user_urls(url: str) -> list:
     return video_page_urls
 
 
-@cache.item_persist(CACHE_KEY_VIDEO_PAGE)
+@cache.item_persist_decorator(CACHE_KEY_VIDEO_PAGE)
 def get_video_page(url: str) -> dict:
     # Download video page html
     video_html = request_url(url)
@@ -147,7 +145,7 @@ def get_video_page(url: str) -> dict:
     return {'description': description, 'embed_url': embed_url}
 
 
-@cache.item_persist(CACHE_KEY_EMBED_JSON)
+@cache.item_persist_decorator(CACHE_KEY_EMBED_JSON)
 def get_json_from_embed_url(url: str) -> dict:
     # Download embed html
     embed_html = request_url(url)

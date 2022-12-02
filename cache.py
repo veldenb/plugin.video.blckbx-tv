@@ -22,7 +22,7 @@ def read(filename):
         cache_pool = {}
 
 
-def item_persist(cache_key) -> any:
+def item_persist_decorator(cache_key) -> any:
     def decorator(original_func) -> any:
 
         def new_func(param) -> str:
@@ -45,6 +45,13 @@ def item_persist(cache_key) -> any:
     return decorator
 
 
+def item_persist(cache_key: str, item: str, data):
+    if cache_key not in cache_pool:
+        cache_pool[cache_key] = {}
+
+    cache_pool[cache_key][item] = data
+
+
 def item_exists(cache_key: str, item: str) -> bool:
     in_cache = False
 
@@ -55,6 +62,11 @@ def item_exists(cache_key: str, item: str) -> bool:
         in_cache = True
 
     return in_cache
+
+def item_get(cache_key: str, item: str) -> any:
+    if item_exists(cache_key, item):
+        return cache_pool[cache_key][item]
+
 
 def item_delete(cache_key: str, item: str) -> bool:
     deleted = False
